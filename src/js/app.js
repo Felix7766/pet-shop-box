@@ -8,13 +8,14 @@ App = {
       var petsRow = $('#petsRow');
       var petTemplate = $('#petTemplate');
 
-      for (i = 0; i < data.length; i ++) {
+      for (i = 0; i < data.length; i++) {
         petTemplate.find('.panel-title').text(data[i].name);
         petTemplate.find('img').attr('src', data[i].picture);
         petTemplate.find('.pet-breed').text(data[i].breed);
         petTemplate.find('.pet-age').text(data[i].age);
         petTemplate.find('.pet-location').text(data[i].location);
         petTemplate.find('.btn-adopt').attr('data-id', data[i].id);
+        petTemplate.find('.btn-refund').attr('data-id', data[i].id).css('display', 'none');
 
         petsRow.append(petTemplate.html());
       }
@@ -24,10 +25,6 @@ App = {
   },
 
   initWeb3: async function() {
-    /*
-     * Replace me...
-     */
-
     // Modern dapp browsers...
     if (window.ethereum) {
       App.web3Provider = window.ethereum;
@@ -36,7 +33,7 @@ App = {
         await window.ethereum.enable();
       } catch (error) {
         // User denied account access...
-        console.error("User denied account access")
+        console.error("User denied account access");
       }
     }
     // Legacy dapp browsers...
@@ -49,14 +46,10 @@ App = {
     }
     web3 = new Web3(App.web3Provider);
 
-    
     return App.initContract();
   },
 
   initContract: function() {
-    /*
-     * Replace me...
-     */
     $.getJSON('Adoption.json', function(data) {
       // Get the necessary contract artifact file and instantiate it with @truffle/contract
       var AdoptionArtifact = data;
@@ -69,18 +62,15 @@ App = {
       return App.markAdopted();
     });
 
-
     return App.bindEvents();
   },
 
   bindEvents: function() {
     $(document).on('click', '.btn-adopt', App.handleAdopt);
+    $(document).on('click', '.btn-refund', App.handleRefund);
   },
 
   markAdopted: function() {
-    /*
-     * Replace me...
-     */
     var adoptionInstance;
 
     App.contracts.Adoption.deployed().then(function(instance) {
@@ -89,21 +79,30 @@ App = {
       return adoptionInstance.getAdopters.call();
     }).then(function(adopters) {
       for (i = 0; i < adopters.length; i++) {
+        var adoptedPanel = $('.panel-pet').eq(i);
+        var adoptButton = adoptedPanel.find('.btn-adopt');
+        var refundButton = adoptedPanel.find('.btn-refund');
+
         if (adopters[i] !== '0x0000000000000000000000000000000000000000') {
-          $('.panel-pet').eq(i).find('button').text('Success').attr('disabled', true);
+          // 如果宠物已被领养
+          adoptButton.text('Adopted').attr('disabled', true).css('display', 'none'); // 禁用并隐藏 Adopt 按钮
+          refundButton.text('Refund').removeAttr('disabled').css('display', 'inline-block');
+        } else {
+          // 如果宠物未被领养
+          adoptButton.text('Adopt').removeAttr('disabled').css('display', 'inline-block'); // 启用并显示 Adopt 按钮
+          refundButton.text('Refund').attr('disabled', true).css('display', 'none'); // 移除 Refund 按钮（如果存在）
         }
       }
     }).catch(function(err) {
       console.log(err.message);
     });
-
   },
 
   handleAdopt: function(event) {
     event.preventDefault();
 
     var petId = parseInt($(event.target).data('id'));
-    
+
     var adoptionInstance;
 
     web3.eth.getAccounts(function(error, accounts) {
@@ -116,20 +115,40 @@ App = {
       App.contracts.Adoption.deployed().then(function(instance) {
         adoptionInstance = instance;
 
-        // Execute adopt as a transaction by sending account
-        return adoptionInstance.adopt(petId, {from: account});
+        return adoptionInstance.adopt(petId, { from: account });
       }).then(function(result) {
         return App.markAdopted();
       }).catch(function(err) {
         console.log(err.message);
       });
     });
+  },
 
-    /*
-     * Replace me...
-     */
+  handleRefund: function(event) {
+    event.preventDefault();
+
+    var petId = parseInt($(event.target).data('id'));
+
+    var adoptionInstance;
+
+    web3.eth.getAccounts(function(error, accounts) {
+      if (error) {
+        console.log(error);
+      }
+
+      var account = accounts[0];
+
+      App.contracts.Adoption.deployed().then(function(instance) {
+        adoptionInstance = instance;
+
+        return adoptionInstance.refund(petId, { from: account });
+      }).then(function(result) {
+        return App.markAdopted();
+      }).catch(function(err) {
+        console.log(err.message);
+      });
+    });
   }
-
 };
 
 $(function() {
