@@ -5,6 +5,7 @@ App = {
   init: async function() {
     // Load pets.
     $.getJSON('../pets.json', function(data) {
+      App.petsData = data;
       var petsRow = $('#petsRow');
       var petTemplate = $('#petTemplate');
 
@@ -70,6 +71,10 @@ App = {
     $(document).on('click', '.btn-refund', App.handleRefund);
   },
 
+  getPetsData: function() {
+    return App.petsData; // 返回存储的宠物数据
+  },
+
   markAdopted: function() {
     var adoptionInstance;
 
@@ -87,10 +92,13 @@ App = {
           // 如果宠物已被领养
           adoptButton.text('Adopted').attr('disabled', true).css('display', 'none'); // 禁用并隐藏 Adopt 按钮
           refundButton.text('Refund').removeAttr('disabled').css('display', 'inline-block');
+          
         } else {
           // 如果宠物未被领养
           adoptButton.text('Adopt').removeAttr('disabled').css('display', 'inline-block'); // 启用并显示 Adopt 按钮
           refundButton.text('Refund').attr('disabled', true).css('display', 'none'); // 移除 Refund 按钮（如果存在）
+
+        
         }
       }
     }).catch(function(err) {
@@ -117,7 +125,17 @@ App = {
 
         return adoptionInstance.adopt(petId, { from: account });
       }).then(function(result) {
-        return App.markAdopted();
+        App.markAdopted();
+        // 获取宠物信息
+        var petData = App.getPetsData()[petId];
+        var time = new Date().toLocaleString();
+
+        // 显示领养成功消息
+        alert('Adoption Successful!\n' +
+              'Pet ID: ' + petId + '\n' +
+              'Pet Name: ' + petData.name + '\n' +
+              'Time: ' + time);
+
       }).catch(function(err) {
         console.log(err.message);
       });
@@ -143,7 +161,16 @@ App = {
 
         return adoptionInstance.refund(petId, { from: account });
       }).then(function(result) {
-        return App.markAdopted();
+        App.markAdopted();
+        // 获取宠物信息
+        var petData = App.getPetsData()[petId];
+        var time = new Date().toLocaleString();
+
+        // 显示退还成功消息
+        alert('Refund Successful!\n' +
+              'Pet ID: ' + petId + '\n' +
+              'Pet Name: ' + petData.name + '\n' +
+              'Time: ' + time);
       }).catch(function(err) {
         console.log(err.message);
       });
