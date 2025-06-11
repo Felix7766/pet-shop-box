@@ -1,77 +1,103 @@
 const Adoption = artifacts.require("Adoption");
 
-contract("Adoption", (accounts) => {
+contract("Adoption", function(accounts) {
     let adoption;
-    const expectedAdopter = accounts[0];
+    const [owner, adopter1, adopter2] = accounts;
 
     before(async () => {
-        adoption = await Adoption.deployed();
+        adoption = await Adoption.new();
     });
 
-    describe("adopting a pet and retrieving account addresses", async () => {
-        before("adopt a pet using accounts[0]", async () => {
-            await adoption.adopt(8, { from: expectedAdopter });
-        });
+    it("should initialize with empty adopters", async () => {
+        const adopters = await adoption.getAdopters();
+        const zeroAddress = "0x0000000000000000000000000000000000000000";
+        
+        for (let i = 0; i < 16; i++) {
+            assert.equal(adopters[i], zeroAddress, `Pet ${i} should not be adopted initially`);
+        }
+    });
 
-        it("can fetch the address of an owner by pet id", async () => {
-            const adopter = await adoption.adopters(8);
-            assert.equal(adopter, expectedAdopter, "The owner of the adopted pet should be the first account");
-        });
-
-        it("can fetch the collection of all pet owners' addresses", async () => {
+    describe("adopt()", () => {
+        it("should allow adoption of a pet", async () => {
+            const petId = 0;
+            await adoption.adopt(petId, {from: adopter1});
+            
             const adopters = await adoption.getAdopters();
-            assert.equal(adopters[8], expectedAdopter, "The owner of the adopted pet should be in the collection");
+            assert.equal(adopters[petId], adopter1, "Adopter address should be recorded");
         });
-    });
 
-    describe("pet adoption edge cases", async () => {
-        it("rejects invalid pet IDs (less than 0)", async () => {
+        it("should reject invalid pet IDs", async () => {
             try {
-                await adoption.adopt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", { 
-                from: accounts[1] });
-                assert.fail("Should have reverted for pet ID < 0");
-            } catch (error) {
-                assert.include(error.message, "revert", "Expected revert for invalid pet ID");
-            }
-        });
-
-        it("rejects invalid pet IDs (greater than 15)", async () => {
-            try {
-                await adoption.adopt(16, { from: accounts[1] });
-                assert.fail("Should have reverted for pet ID > 15");
-            } catch (error) {
-                assert.include(error.message, "revert", "Expected revert for invalid pet ID");
-            }
-        });
-    });
-
-    describe("refunding a pet", async () => {
-        before("adopt a pet first", async () => {
-            await adoption.adopt(5, { from: accounts[2] });
-        });
-
-        it("allows the adopter to refund", async () => {
-            await adoption.refund(5, { from: accounts[2] });
-            const adopter = await adoption.adopters(5);
-            assert.equal(adopter, "0x0000000000000000000000000000000000000000", "Adopter should be reset after refund");
-        });
-
-        it("rejects refund from non-adopter", async () => {
-            try {
-                await adoption.refund(5, { from: accounts[3] });
-                assert.fail("Should have reverted when non-adopter tries to refund");
-            } catch (error) {
-                assert.include(error.message, "revert", "Expected revert when non-adopter tries to refund");
-            }
-        });
-
-        it("rejects refund for invalid pet IDs", async () => {
-            try {
-                await adoption.refund(16, { from: accounts[2] });
+                await adoption.adopt(16, {from: adopter1});
                 assert.fail("Should have reverted for invalid pet ID");
             } catch (error) {
-                assert.include(error.message, "revert", "Expected revert for invalid pet ID");
+                assert.include(error.message, "revert", "Should revert for invalid pet ID");
             }
+        });
+
+        it("should allow different accounts to adopt different pets", async () => {
+            await adoption.adopt(1, {from: adopter1});
+            await adoption.adopt(2, {from: adopter2});
+            
+            const adopters = await adoption.getAdopters();
+            assert.equal(adopters[1], adopter1, "Adopter1 should own pet 1");
+            assert.equal(adopters[2], adopter2, "Adopter2 should own pet 2");
+        });
+    });
+
+    describe("refund()", () => {
+        before(async () => {
+            await adoption.adopt(3, {from: adopter1});
+        });
+
+        it("should allow refund by the adopter", async () => {
+            await adoption.refund(3, {from: adopter1});
+            
+            const adopters = await adoption.getAdopters();
+            const zeroAddress = "0x0000000000000000000000000000000000000000";
+            assert.equal(adopters[3], zeroAddress, "Pet should be available after refund");
+        });
+
+        it("should record refunded address in history", async () => {
+            await adoption.adopt(4, {from: adopter1});
+            await adoption.refund(4, {from: adopter1});
+            
+            const history = await adoption.getAdopters_history();
+            assert.equal(history[4], adopter1, "History should record previous adopter");
+        });
+
+        it("should reject refund by non-adopter", async () => {
+            await adoption.adopt(5, {from: adopter1});
+            
+            try {
+                await adoption.refund(5, {from: adopter2});
+                assert.fail("Should have reverted for non-adopter");
+            } catch (error) {
+                assert.include(error.message, "revert", "Should revert for non-adopter");
+            }
+        });
+
+        it("should reject refund for invalid pet IDs", async () => {
+            try {
+                await adoption.refund(16, {from: adopter1});
+                assert.fail("Should have reverted for invalid pet ID");
+            } catch (error) {
+                assert.include(error.message, "revert", "Should revert for invalid pet ID");
+            }
+        });
+    });
+
+    describe("getAdopters() and getAdopters_history()", () => {
+        it("should return correct arrays", async () => {
+            await adoption.adopt(6, {from: adopter1});
+            await adoption.refund(6, {from: adopter1});
+            
+            const adopters = await adoption.getAdopters();
+            const history = await adoption.getAdopters_history();
+            
+            const zeroAddress = "0x0000000000000000000000000000000000000000";
+            assert.equal(adopters[6], zeroAddress, "Current adopter should be empty");
+            assert.equal(history[6], adopter1, "History should show previous adopter");
         });
     });
 });

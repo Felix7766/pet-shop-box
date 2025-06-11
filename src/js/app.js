@@ -122,19 +122,31 @@ App = {
 
       App.contracts.Adoption.deployed().then(function(instance) {
         adoptionInstance = instance;
-
-        return adoptionInstance.adopt(petId, { from: account });
-      }).then(function(result) {
-        App.markAdopted();
-        // 获取宠物信息
-        var petData = App.getPetsData()[petId];
-        var time = new Date().toLocaleString();
-
-        // 显示领养成功消息
-        alert('Adoption Successful!\n' +
-              'Pet ID: ' + petId + '\n' +
-              'Pet Name: ' + petData.name + '\n' +
-              'Time: ' + time);
+            return Promise.all([
+                instance.adopt(petId, { from: account }),
+                instance.getAdopters_history.call()
+            ]);
+      }).then(function(results) {
+            var adoptResult = results[0];
+            var adoptersHistory = results[1];
+            
+            App.markAdopted();
+            // Get pet information
+            var petData = App.getPetsData()[petId];
+            var time = new Date().toLocaleString();
+            
+            // Check if there's adoption history for this pet
+            var historyAddress = adoptersHistory[petId];
+            var historyText = (historyAddress === '0x0000000000000000000000000000000000000000') 
+                ? 'Never been adopted before' 
+                : 'Previous adopter: ' + historyAddress;
+            
+            // Show adoption success message
+            alert('Adoption Successful!\n' +
+                'Pet ID: ' + petId + '\n' +
+                'Pet Name: ' + petData.name + '\n' +
+                historyText + '\n' +
+                'Time: ' + time);
 
       }).catch(function(err) {
         console.log(err.message);
